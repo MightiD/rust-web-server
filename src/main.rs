@@ -11,6 +11,34 @@ struct Headers {
     version: String,
 }
 
+impl Headers {
+    fn make_file_path(&mut self) {
+        match Path::new(&self.path).extension() {
+            
+            //   /   -> ./pages/index.html
+            // /page -> ./pages/sub/page.html
+
+            None => {
+                if self.path == "/" {
+                    self.path = format!("./pages/index.html");
+                } else {
+                    self.path = format!("./pages/sub{}.html", self.path);
+                }
+
+                println!("{}", self.path);
+
+            }
+
+            // image.png -> ./pages/assets/image.png
+
+            Some(_) => {
+                self.path = format!("./pages/assets{}", self.path);
+
+            }
+        }
+    }
+}
+
 fn parse_request(request: &str) -> Headers {
     let method = request
         .lines()
@@ -57,7 +85,8 @@ fn get_content_type(file_type: &str) -> &str {
         ("jpeg", "image/jpeg"),
         ("gif", "image/gif"),
         ("mp4", "video/mp4"),
-        ("pdf", "application/pdf")
+        ("pdf", "application/pdf"),
+        ("html", "text/html")
     ]);
 
     match content_types.get(file_type) {
@@ -71,53 +100,50 @@ fn get_content_type(file_type: &str) -> &str {
     };
 }
 
-fn serve_html(headers: &Headers) -> Vec<u8>{
-    println!("{}", headers.path);
+fn serve_file(headers: &Headers) -> Vec<u8> {
+    let content_type = get_content_type(&headers.path);
 
-    let file = match fs::read_to_string(&headers.path) {
-        Ok(file) => file,
-        Err(_) => {
-            return format!("{} 404 Not found\r\nContent-Type: text/plain\r\n\r\nFile not found\n", headers.version).into_bytes();
-        }
-    };
+    if content_type == "text/html" {
+        let file = match fs::read_to_string(&headers.path) {
+            Ok(file) => file,
+            Err(_) => {
+                return format!("{} 404 Not found\r\nContent-Type: text/plain\r\n\r\nFile not found\n", headers.version).into_bytes();
+            }
+        };
 
-    let status = "200 OK";
+        return format!("{} 200 Ok\r\nContent-Type: text/html\r\n\r\n{}\n", headers.version, file).into_bytes()
 
-    format!("{} {}\r\nContent-Type: text/html\r\n\r\n{}\n", headers.version, status, file).into_bytes()
+    } else {
+        // not a html file, so serve whatever file it wants through the byte stream
 
-}
+        let file = match fs::File::open(&headers.path) {
+            Ok(file) => file,
+            Err(_) => {
+                return format!("{} 404 Not found\r\nContent-Type: text/plain\r\n\r\nFile not found\n", headers.version).into_bytes()
+            }
+        };
+        
+        let mut reader = BufReader::new(file);
+        let mut buffer = Vec::new();
 
-//i hate Vec<u8>
-fn serve_other_file(headers: &Headers, file_type: String) -> Vec<u8> {
+        //rust why do you make me actually do error checking
+        reader.read_to_end(&mut buffer)
+            .expect("Couldnt read buffer, not my problem");
 
-    let content_type = get_content_type(&file_type);
+        let buffer_length = buffer.len();
 
-    let file = match fs::File::open(&headers.path) {
-        Ok(file) => file,
-        Err(_) => {
-            return format!("{} 404 Not found\r\nContent-Type: text/plain\r\n\r\nFile not found\n", headers.version).into_bytes()
-        }
-    };
+        let mut response = format!(
+            "{} 200 Ok\r\nContent-Type: {}\r\nContent-Length: {}\r\n\r\n", 
+            headers.version,
+            content_type,
+            buffer_length)
+            .into_bytes();
 
-    let mut reader = BufReader::new(file);
-    let mut buffer = Vec::new();
+        response.append(&mut buffer);
 
-    //rust why do you make me actually do error checking
-    reader.read_to_end(&mut buffer)
-        .expect("Couldnt read buffer, not my problem");
+        response
+    }
 
-    let buffer_length = buffer.len();
-
-    let mut response = format!(
-        "{} 200 Ok\r\nContent-Type: {}\r\nContent-Length: {}\r\n\r\n", 
-        headers.version,
-        content_type,
-        buffer_length)
-        .into_bytes();
-
-    response.append(&mut buffer);
-
-    response
 }
 
 fn handle_client(mut stream: &TcpStream) -> Vec<u8> {
@@ -131,34 +157,11 @@ fn handle_client(mut stream: &TcpStream) -> Vec<u8> {
 
     let mut request = parse_request(&request);
 
-    //getting file extension requested
-    match Path::new(&request.path).extension() {
-        //path is / or /example, http path, so need to append .html to end and send that
-        None => {
-            if request.path == "/" {
-                request.path = format!("./pages/index.html");
-            } else {
-                request.path = format!("./pages/sub{}.html", request.path);
-            }
+    request.make_file_path();
 
-            println!("{}", request.path);
+    println!("{}", request.path);
 
-            serve_html(&request)
-        }
-        Some(file_type) => {
-            let file_type = file_type
-                .to_str()
-                .unwrap_or("png")
-                .to_string();
-
-            request.path = format!("./pages/assets/{}", request.path);
-
-            serve_other_file(
-                &request, 
-                file_type
-            )
-        }
-    }
+    serve_file(&request)
 
 }
 
