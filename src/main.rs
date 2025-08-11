@@ -78,7 +78,7 @@ fn parse_request(request: &str) -> Headers {
 
 }
 
-fn get_content_type(file_type: &str) -> &str {
+fn get_content_type(path: &str) -> &str {
     let content_types = HashMap::from([
         ("png", "image/png"),
         ("jpg", "image/jpeg"),
@@ -89,7 +89,12 @@ fn get_content_type(file_type: &str) -> &str {
         ("html", "text/html")
     ]);
 
-    match content_types.get(file_type) {
+    let file_type = Path::new(path).extension()
+        .expect("Couldnt read that file, idk how you did this tbh, i append .html to any path that doesnt request a specific file type")
+        .to_str()
+        .expect("Couldnt convert file path to valid str");
+
+    match content_types.get(&file_type) {
         None => {
             //return png type if doesnt match the ones i could be bothered to add
             return "image/png"
@@ -103,46 +108,33 @@ fn get_content_type(file_type: &str) -> &str {
 fn serve_file(headers: &Headers) -> Vec<u8> {
     let content_type = get_content_type(&headers.path);
 
-    if content_type == "text/html" {
-        let file = match fs::read_to_string(&headers.path) {
-            Ok(file) => file,
-            Err(_) => {
-                return format!("{} 404 Not found\r\nContent-Type: text/plain\r\n\r\nFile not found\n", headers.version).into_bytes();
-            }
-        };
+    let file = match fs::File::open(&headers.path) {
+        Ok(file) => file,
+        Err(_) => {
+            return format!("{} 404 Not found\r\nContent-Type: text/plain\r\n\r\nFile not found\n", headers.version).into_bytes()
+        }
+    };
+    
+    //buffer for file
+    let mut reader = BufReader::new(file);
+    let mut buffer = Vec::new();
 
-        return format!("{} 200 Ok\r\nContent-Type: text/html\r\n\r\n{}\n", headers.version, file).into_bytes()
+    //rust why do you make me actually do error checking
+    reader.read_to_end(&mut buffer)
+        .expect("Couldnt read buffer, not my problem");
 
-    } else {
-        // not a html file, so serve whatever file it wants through the byte stream
+    let buffer_length = buffer.len();
 
-        let file = match fs::File::open(&headers.path) {
-            Ok(file) => file,
-            Err(_) => {
-                return format!("{} 404 Not found\r\nContent-Type: text/plain\r\n\r\nFile not found\n", headers.version).into_bytes()
-            }
-        };
-        
-        let mut reader = BufReader::new(file);
-        let mut buffer = Vec::new();
+    let mut response = format!(
+        "{} 200 Ok\r\nContent-Type: {}\r\nContent-Length: {}\r\n\r\n", 
+        headers.version,
+        content_type,
+        buffer_length)
+        .into_bytes();
 
-        //rust why do you make me actually do error checking
-        reader.read_to_end(&mut buffer)
-            .expect("Couldnt read buffer, not my problem");
+    response.append(&mut buffer);
 
-        let buffer_length = buffer.len();
-
-        let mut response = format!(
-            "{} 200 Ok\r\nContent-Type: {}\r\nContent-Length: {}\r\n\r\n", 
-            headers.version,
-            content_type,
-            buffer_length)
-            .into_bytes();
-
-        response.append(&mut buffer);
-
-        response
-    }
+    response
 
 }
 
