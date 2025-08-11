@@ -6,6 +6,7 @@ use std::path::Path;
 use std::thread;
 
 use urlencoding::decode;
+use mime_guess::{self, mime};
 
 struct Headers {
     method: String,
@@ -87,31 +88,12 @@ fn parse_request(request: &str) -> Headers {
 
 }
 
-fn get_content_type(path: &str) -> &str {
-    let content_types = HashMap::from([
-        ("png", "image/png"),
-        ("jpg", "image/jpeg"),
-        ("jpeg", "image/jpeg"),
-        ("gif", "image/gif"),
-        ("mp4", "video/mp4"),
-        ("pdf", "application/pdf"),
-        ("html", "text/html")
-    ]);
+fn get_content_type(path: &str) -> String {
+    let mime_type = mime_guess::from_path(path)
+        .first_or_text_plain()
+        .to_string();
 
-    let file_type = Path::new(path).extension()
-        .expect("Couldnt read that file, idk how you did this tbh, i append .html to any path that doesnt request a specific file type")
-        .to_str()
-        .expect("Couldnt convert file path to valid str");
-
-    match content_types.get(&file_type) {
-        None => {
-            //return png type if doesnt match the ones i could be bothered to add
-            return "image/png"
-        }
-        Some(content_type) => {
-            return content_type
-        }
-    };
+    mime_type
 }
 
 fn serve_file(headers: &Headers) -> Vec<u8> {
@@ -159,8 +141,6 @@ fn handle_client(mut stream: &TcpStream) -> Vec<u8> {
     let mut request = parse_request(&request);
 
     request.make_file_path();
-
-    println!("{}", request.path);
 
     serve_file(&request)
 
