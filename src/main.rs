@@ -56,7 +56,8 @@ fn get_content_type(file_type: &str) -> &str {
         ("jpg", "image/jpeg"),
         ("jpeg", "image/jpeg"),
         ("gif", "image/gif"),
-        ("mp4", "video/mp4")
+        ("mp4", "video/mp4"),
+        ("pdf", "application/pdf")
     ]);
 
     match content_types.get(file_type) {
