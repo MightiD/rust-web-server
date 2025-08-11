@@ -25,7 +25,6 @@ impl Headers {
             
             //   /   -> ./pages/index.html
             // /page -> ./pages/sub/page.html
-
             None => {
                 if self.path == "/" {
                     self.path = format!("./pages/index.html");
