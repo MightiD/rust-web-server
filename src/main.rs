@@ -38,8 +38,11 @@ impl Headers {
 
             // image.png -> ./pages/assets/image.png
             Some(_) => {
-                self.path = format!("./pages/assets{}", self.path);
-
+                if self.path == "/index.html" {
+                    self.path = format!("./pages/index.html");
+                } else {
+                    self.path = format!("./pages/assets{}", self.path);
+                }
             }
         }
     }
