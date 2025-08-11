@@ -5,6 +5,8 @@ use std::fs;
 use std::path::Path;
 use std::thread;
 
+use urlencoding::decode;
+
 struct Headers {
     method: String,
     path: String,
@@ -13,6 +15,12 @@ struct Headers {
 
 impl Headers {
     fn make_file_path(&mut self) {
+
+        // example.com/cool%20file.png
+        self.path = decode(&self.path)
+            .expect("UTF-8")
+            .to_string();
+
         match Path::new(&self.path).extension() {
             
             //   /   -> ./pages/index.html
