@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::net::{TcpListener, TcpStream};
 use std::io::{Read, Write, BufReader};
 use std::fs;
@@ -6,7 +5,7 @@ use std::path::Path;
 use std::thread;
 
 use urlencoding::decode;
-use mime_guess::{self, mime};
+use mime_guess;
 
 struct Headers {
     method: String,
