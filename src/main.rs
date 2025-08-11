@@ -37,7 +37,6 @@ impl Headers {
             }
 
             // image.png -> ./pages/assets/image.png
-
             Some(_) => {
                 self.path = format!("./pages/assets{}", self.path);
 
